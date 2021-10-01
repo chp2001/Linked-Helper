@@ -46,8 +46,8 @@ public:
     Node* cacheCall;
     int cacheIndex;
     bool unchanged;
-    bool hashed;
-    Node** hash;
+    bool collected;
+    Node** collect;
     Array(string s);
     Array(Node* n);
     Array();
@@ -65,7 +65,7 @@ public:
     void denote_change();
     void change_at_index(int i);
     void change_at_index_add(int i, int n);
-    void do_hash();
+    void do_collect();
 };
 Array::Array(string s) {
     name = s;
@@ -73,7 +73,7 @@ Array::Array(string s) {
     end = NULL;
     cacheLn = 0;
     unchanged = true;
-    hashed = false;
+    collected = false;
 }
 Array::Array(Node* n) {
     name = "";
@@ -81,7 +81,7 @@ Array::Array(Node* n) {
     end = n;
     cacheLn = 1;
     unchanged = true;
-    hashed = false;
+    collected = false;
 }
 Array::Array() {
     name = "";
@@ -89,7 +89,7 @@ Array::Array() {
     end = NULL;
     cacheLn = 0;
     unchanged = true;
-    hashed = false;
+    collected = false;
 }
 Node* Array::endOfList() {
     if (head == NULL) {
@@ -103,8 +103,8 @@ Node* Array::index(int i) {
     if (head == NULL or len()<i+1) {
         return NULL;
     }
-    else if (hashed) {
-        return hash[i];
+    else if (collected) {
+        return collect[i];
     }
     else if (cached and cacheIndex < i) {
         Node* handler = cacheCall;
@@ -148,26 +148,26 @@ Node* Array::index(int i) {
 }
 void Array::denote_change() {
     unchanged = false;
-    if (hashed) {
-        delete hash;
+    if (collected) {
+        delete collect;
     }
-    hashed = false;
+    collected = false;
     cached = false;
 }
 void Array::change_at_index(int i) {
     unchanged = false;
-    if (hashed) {
-        Node** oldhash = hash;
+    if (collected) {
+        Node** oldcollect = collect;
         int length = len();
-        hash = new Node*[length];
+        collect = new Node*[length];
         for (int j = 0;j < i;j++) {
-            hash[j] = oldhash[j];
+            collect[j] = oldcollect[j];
         }
-        Node* handler = hash[i - 1];
+        Node* handler = collect[i - 1];
         int j = i - 1;
         while (handler->next != NULL) {
             handler = handler->next;
-            hash[j] = handler;
+            collect[j] = handler;
             j++;
         }
     }
@@ -176,18 +176,18 @@ void Array::change_at_index(int i) {
 }
 void Array::change_at_index_add(int i, int n) {
     cacheLn+=n;
-    if (hashed) {
-        Node** oldhash = hash;
+    if (collected) {
+        Node** oldcollect = collect;
         int length = len();
-        hash = new Node * [length];
+        collect = new Node * [length];
         for (int j = 0;j < i;j++) {
-            hash[j] = oldhash[j];
+            collect[j] = oldcollect[j];
         }
-        Node* handler = hash[i - 1];
+        Node* handler = collect[i - 1];
         int j = i - 1;
         while (handler->next != NULL) {
             handler = handler->next;
-            hash[j] = handler;
+            collect[j] = handler;
             j++;
         }
     }
@@ -382,14 +382,14 @@ bool Array::swapIndexes_(int i, int j) {
     }
     return false;
 }
-void Array::do_hash() {
-    hash = new Node*[len()];
+void Array::do_collect() {
+    collect = new Node*[len()];
     Node* handler = head;
     for (int i = 0;i < len();i++) {
-        hash[i] = handler;
+        collect[i] = handler;
         handler = handler->next;
     }
-    hashed = true;
+    collected = true;
 }
 Array* newArray(string s) {
     Array* newptr = new Array(s);
@@ -479,9 +479,9 @@ int main(int argc, char* argv[]) {
     after = curtime();
     printf_s("swapping all %d terms took %f seconds\n", mainList->len(), after - beforetime - offset);
     beforetime = curtime();
-    mainList->do_hash();
+    mainList->do_collect();
     after = curtime();
-    printf_s("hashing all %d terms took %f seconds\n", mainList->len(), after - beforetime - offset);
+    printf_s("collecting all %d terms took %f seconds\n", mainList->len(), after - beforetime - offset);
     beforetime = curtime();
     for (int i = 0;i <mainList->len();i++, j++) {
         if (j >= 10) {
@@ -492,6 +492,6 @@ int main(int argc, char* argv[]) {
         //printf_s("%d ", mainList->index(i)->data);
     }
     after = curtime();
-    printf_s("calling all %d terms from hash took %f seconds\n", mainList->len(), after - beforetime - offset);
+    printf_s("calling all %d terms from collected array took %f seconds\n", mainList->len(), after - beforetime - offset);
     return 0;
 }
