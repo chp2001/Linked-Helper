@@ -40,7 +40,11 @@ class Array {
 public:
     string name;
     Node* head;
+    Node* end;
     int cacheLn;
+    bool cached;
+    Node* cacheCall;
+    int cacheIndex;
     bool unchanged;
     bool hashed;
     Node** hash;
@@ -59,11 +63,14 @@ public:
     bool swapIndexes_(int i, int j);
     bool simpleDisconnect_(int i);
     void denote_change();
+    void change_at_index(int i);
+    void change_at_index_add(int i, int n);
     void do_hash();
 };
 Array::Array(string s) {
     name = s;
     head = NULL;
+    end = NULL;
     cacheLn = 0;
     unchanged = true;
     hashed = false;
@@ -71,6 +78,7 @@ Array::Array(string s) {
 Array::Array(Node* n) {
     name = "";
     head = n;
+    end = n;
     cacheLn = 1;
     unchanged = true;
     hashed = false;
@@ -78,6 +86,7 @@ Array::Array(Node* n) {
 Array::Array() {
     name = "";
     head = NULL;
+    end = NULL;
     cacheLn = 0;
     unchanged = true;
     hashed = false;
@@ -87,11 +96,7 @@ Node* Array::endOfList() {
         return NULL;
     }
     else {
-        Node* handler = head;
-        while (handler->next != NULL) {
-            handler = handler->next;
-        }
-        return handler;
+        return end;
     }
 }
 Node* Array::index(int i) {
@@ -100,6 +105,25 @@ Node* Array::index(int i) {
     }
     else if (hashed) {
         return hash[i];
+    }
+    else if (cached and cacheIndex < i) {
+        Node* handler = cacheCall;
+        int j = cacheIndex;
+        while (handler->next != NULL) {
+            if (j == i) {
+                break;
+            }
+            handler = handler->next;
+            j++;
+        }
+        if (j == i) {
+            cacheIndex = i;
+            cacheCall = handler;
+            return handler;
+        }
+        else {
+            return NULL;
+        }
     }
     else {
         Node* handler = head;
@@ -112,6 +136,9 @@ Node* Array::index(int i) {
             j++;
         }
         if (j == i) {
+            cacheIndex = i;
+            cacheCall = handler;
+            cached = true;
             return handler;
         }
         else {
@@ -125,6 +152,47 @@ void Array::denote_change() {
         delete hash;
     }
     hashed = false;
+    cached = false;
+}
+void Array::change_at_index(int i) {
+    unchanged = false;
+    if (hashed) {
+        Node** oldhash = hash;
+        int length = len();
+        hash = new Node*[length];
+        for (int j = 0;j < i;j++) {
+            hash[j] = oldhash[j];
+        }
+        Node* handler = hash[i - 1];
+        int j = i - 1;
+        while (handler->next != NULL) {
+            handler = handler->next;
+            hash[j] = handler;
+            j++;
+        }
+    }
+    cached = false;
+    //hashed = false;
+}
+void Array::change_at_index_add(int i, int n) {
+    cacheLn+=n;
+    if (hashed) {
+        Node** oldhash = hash;
+        int length = len();
+        hash = new Node * [length];
+        for (int j = 0;j < i;j++) {
+            hash[j] = oldhash[j];
+        }
+        Node* handler = hash[i - 1];
+        int j = i - 1;
+        while (handler->next != NULL) {
+            handler = handler->next;
+            hash[j] = handler;
+            j++;
+        }
+    }
+    cached = false;
+    unchanged = true;
 }
 int Array::len() {
     if (head == NULL) {
@@ -147,20 +215,18 @@ int Array::len() {
 }
 void Array::add(Node* n) {
     if (head == NULL) {
-        head=n;
+        head = n;
+        end = n;
     }
     else {
-        Node* handler = head;
-        while (handler->next != NULL) {
-            handler = handler->next;
-        }
-        handler->next=n;
+        end->next = n;
+        end = n;
     }
-    denote_change();
+    change_at_index_add(cacheLn,1);
 }
 bool Array::del(int i) {
     if (del_(i)) {
-        denote_change();
+        change_at_index_add(i,-1);
         return true;
     }
     else {
@@ -194,6 +260,7 @@ bool Array::del_(int i) {
             deathrow = before->next;
             delete deathrow;
             before->next = NULL;
+            end = before;
             return true;
         }
         if (length > i + 1) {//if there is an item both before and after our target
@@ -208,7 +275,7 @@ bool Array::del_(int i) {
 }
 bool Array::insert(Node* n, int i) {
     if (insert_(n, i)) {
-        denote_change();
+        change_at_index_add(i,1);
         return true;
     }
     else {
@@ -245,8 +312,13 @@ bool Array::insert_(Node* n, int i) {
     return false;
 }
 bool Array::swapIndexes(int i, int j) {
+    if (i > j) {
+        int temp = j;
+        j = i;
+        i = temp;
+    }
     if (swapIndexes_(i,j)) {
-        denote_change();
+        change_at_index_add(i,0);
         return true;
     }
     else {
@@ -258,46 +330,55 @@ bool Array::swapIndexes_(int i, int j) {
     if (length <= i or length <= j or i==j) {
         return false;
     }
-    if (i > j) {
-        int temp = j;
-        j = i;
-        i = temp;
-    }
-    Node* n1 = index(i);
-    Node* n2 = index(j);
-    if (n1!=NULL and n2!=NULL) {
-        if (j == i + 1) {
-            if (i == 0) {
-                head = n2;
-                n1->next = n2->next;
-                n2->next = n1;
-                return true;
-            }
-            else {
-                Node* before = index(i - 1);
-                before->next = n2;
-                n1->next = n2->next;
-                n2->next = n1;
-                return true;
-            }
-        }
-        else {
-            Node* b1 = index(i - 1);
-            Node* b2 = index(j - 1);
-            Node* a1 = index(i + 1);
-            Node* a2 = index(j + 1);
-            if (i > 0) {
-                b1->next = n2;
-            }
-            else {
-                head = n2;
-            }
-            b2->next = n1;
-            n2->next = a1;
-            n1->next = a2;
+    if (j == i + 1) {
+        if (i == 0) {
+            Node* n1 = index(i);
+            Node* n2 = index(j);
+            head = n2;
+            n1->next = n2->next;
+            n2->next = n1;
             return true;
         }
-        return false;
+        else {
+            Node* n1;
+            Node* n2;
+            Node* before = index(i - 1);
+            n1 = before->next;
+            n2 = n1->next;
+            before->next = n2;
+            n1->next = n2->next;
+            n2->next = n1;
+            return true;
+        }
+    }
+    else {
+        Node* b1;
+        Node* b2 = index(j - 1);
+        Node* n1;
+        if (i > 0) {
+            b1 = index(i - 1);
+            n1 = b1->next;
+        }
+        else {
+            b1 = NULL;
+            n1 = index(i);
+        }
+        Node* n2 = b2->next;
+        Node* a1 = n1->next;
+        Node* a2 = n2->next;
+        if (i > 0) {
+            b1->next = n2;
+        }
+        else {
+            head = n2;
+        }
+        if (a2 == NULL) {
+            end = n1;
+        }
+        b2->next = n1;
+        n2->next = a1;
+        n1->next = a2;
+        return true;
     }
     return false;
 }
@@ -319,6 +400,7 @@ double curtime() {
     return (double)nanoseconds* 1e-9;
 }
 int main(int argc, char* argv[]) {
+    srand(time(NULL));
     double beforetime = curtime();
     double offset = curtime() - beforetime;
     printf_s("getting curtime took %f seconds\n", offset);
@@ -335,20 +417,31 @@ int main(int argc, char* argv[]) {
         mainList->del(0);
     }
     printf_s("deleting 35 terms took %f seconds\n", curtime() - beforetime-offset);
+    int j = 0;
+    beforetime = curtime();
+    for (int i = 0;i < 35;i++) {
+        mainList->del(rand() % mainList->len());
+        //printf_s("%d ", mainList->index(i)->data);
+        j++;
+    }
+    after = curtime();
+    printf_s("deleting %d RANDOM terms took %f seconds\n", j, after - beforetime - offset);
     beforetime = curtime();
     int curlen = mainList->len();
-    for (int i = 0;i < mainList->len()/2;i++) {
-        int curlen = mainList->len();
-        if (not mainList->insert(newNode(1337), 2 * i + 1)) {
-            printf_s("   failed at %d when length was %d, attempted to insert at %d\n", i,curlen,2*i+1);
-        }
-        else {
-            //printf_s("succeeded at %d when length was %d, inserted at %d\n", i, curlen, 2 * i + 1);
+    if (0) {
+        for (int i = 0;i < mainList->len() / 2;i++) {
+            int curlen = mainList->len();
+            if (not mainList->insert(newNode(1337), 2 * i + 1)) {
+                printf_s("   failed at %d when length was %d, attempted to insert at %d\n", i, curlen, 2 * i + 1);
+            }
+            else {
+                //printf_s("succeeded at %d when length was %d, inserted at %d\n", i, curlen, 2 * i + 1);
+            }
         }
     }
     after = curtime();
     printf_s("inserting %d terms took %f seconds\n",mainList->len()-curlen, after - beforetime-offset);
-    int j = 0;
+    j = 0;
     beforetime = curtime();
     for (int i = 0;i < mainList->len();i++,j++) {
         if (j >= 10) {
@@ -360,16 +453,27 @@ int main(int argc, char* argv[]) {
     }
     after = curtime();
     printf_s("calling all %d terms took %f seconds\n",mainList->len(), after - beforetime - offset);
+    beforetime = curtime();
+    j = 0;
+    for (int i = 0;i < mainList->len();i++) {
+        auto data = mainList->index(rand()%mainList->len())->data;
+        //printf_s("%d ", mainList->index(i)->data);
+        j++;
+    }
+    after = curtime();
+    printf_s("calling %d RANDOM terms took %f seconds\n",j, after - beforetime - offset);
     //printf_s("\nvalue at index 3 is %d\n",mainList->index(3)->data);
     curlen = mainList->len();
     beforetime = curtime();
-    for (int i = 0;i < curlen;i++) {
-        int curlen = mainList->len();
-        if (not /*mainList->swapIndexes(i, mainList->len() - i -*/ 1/*)*/) {
-            printf_s("   failed at %d when length was %d, attempted to swap at %d\n", i, curlen, mainList->len() - i);
-        }
-        else {
-            //printf_s("succeeded at %d when length was %d, swapped at %d\n", i, curlen, mainList->len() - i);
+    if (1) {
+        for (int i = 0;i < curlen;i++) {
+            int curlen = mainList->len();
+            if ((mainList->len() - i - 1!=i) and not mainList->swapIndexes(i, mainList->len() - i - 1)) {
+                printf_s("   failed at %d when length was %d, attempted to swap at %d\n", i, curlen, mainList->len() - i - 1);
+            }
+            else {
+                //printf_s("succeeded at %d when length was %d, swapped at %d\n", i, curlen, mainList->len() - i);
+            }
         }
     }
     after = curtime();
