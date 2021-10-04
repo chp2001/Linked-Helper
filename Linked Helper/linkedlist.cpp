@@ -61,7 +61,6 @@ public:
     bool insert_(Node* n, int i);
     bool swapIndexes(int i, int j);
     bool swapIndexes_(int i, int j);
-    bool simpleDisconnect_(int i);
     void denote_change();
     void change_at_index(int i);
     void change_at_index_add(int i, int n);
